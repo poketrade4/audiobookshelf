@@ -55,6 +55,9 @@ export default {
     disabled: Boolean,
     readonly: Boolean,
     showEdit: Boolean,
+    // Treat values that differ only by letter case as the same value (e.g. "Space opera" and "Space Opera").
+    // Off by default since some inputs (URLs, origins) are case-sensitive.
+    caseInsensitive: Boolean,
     menuDisabled: {
       type: Boolean,
       default: false
@@ -187,6 +190,16 @@ export default {
           )
         ]
 
+        if (this.caseInsensitive) {
+          // Same handling as typing so pasting and typing cannot disagree
+          for (const pastedItem of pastedItems) {
+            this.addItemIgnoreCase(pastedItem)
+          }
+          this.textInput = null
+          this.currentSearch = null
+          return
+        }
+
         // Filter out items already selected
         const itemsToAdd = pastedItems.filter((i) => !this.selected.some((_i) => _i.toLowerCase() === i.toLowerCase()))
         if (pastedItems.length && !itemsToAdd.length) {
@@ -238,6 +251,19 @@ export default {
         this.$refs.input.focus()
       }
 
+      if (this.caseInsensitive && !this.selected.includes(itemValue)) {
+        // Picking "Space Opera" from the menu while "Space opera" is selected replaces it instead of adding a second item
+        const variantIndex = this.findSelectedIndexIgnoreCase(itemValue)
+        if (variantIndex >= 0) {
+          this.replaceSelectedItem(variantIndex, itemValue)
+          this.selectedMenuItemIndex = null
+          this.$nextTick(() => {
+            this.recalcMenuPos()
+          })
+          return
+        }
+      }
+
       var newSelected = null
       if (this.selected.includes(itemValue)) {
         newSelected = this.selected.filter((s) => s !== itemValue)
@@ -285,12 +311,62 @@ export default {
       this.currentSearch = null
       this.selectedMenuItemIndex = null
     },
+    /**
+     * Index of the selected item that matches `text` ignoring letter case, or -1
+     */
+    findSelectedIndexIgnoreCase(text) {
+      const lower = String(text).toLowerCase()
+      return this.selected.findIndex((s) => String(s).toLowerCase() === lower)
+    },
+    /**
+     * Swap the selected item at `index` for `newItem` (case-only change)
+     */
+    replaceSelectedItem(index, newItem) {
+      const oldItem = this.selected[index]
+      const updated = this.selected.slice()
+      updated.splice(index, 1, newItem)
+      this.$emit('input', updated)
+      this.$emit('removedItem', oldItem)
+      this.$emit('newItem', newItem)
+      this.textInput = null
+      this.currentSearch = null
+      this.selectedMenuItemIndex = null
+    },
+    /**
+     * Add typed/pasted text when caseInsensitive is set:
+     * - Already selected with different case: replace it with the new text so the case can be fixed in one step
+     * - Otherwise: add what was typed as-is. Existing items that match ignoring case are suggested in the dropdown
+     *   (pick one by clicking it or arrow keys + Enter), but the typed case is never overridden
+     */
+    addItemIgnoreCase(text) {
+      const selectedIndex = this.findSelectedIndexIgnoreCase(text)
+      if (selectedIndex >= 0) {
+        if (this.selected[selectedIndex] === text) {
+          // Exact match is already selected, nothing to change
+          this.textInput = null
+          this.currentSearch = null
+          this.selectedMenuItemIndex = null
+        } else {
+          this.replaceSelectedItem(selectedIndex, text)
+        }
+        return
+      }
+
+      const matchesItem = this.items.find((i) => i === text)
+      if (matchesItem) {
+        this.clickedOption(null, matchesItem)
+      } else {
+        this.insertNewItem(text)
+      }
+    },
     submitForm() {
       if (!this.textInput) return
 
       const cleaned = this.textInput.trim()
       if (!cleaned) {
         this.resetInput()
+      } else if (this.caseInsensitive) {
+        this.addItemIgnoreCase(cleaned)
       } else {
         const matchesItem = this.items.find((i) => i === cleaned)
         if (matchesItem) {

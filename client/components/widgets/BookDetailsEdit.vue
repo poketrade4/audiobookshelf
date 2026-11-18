@@ -30,10 +30,10 @@
 
       <div class="flex flex-wrap mt-2 -mx-1">
         <div class="w-full md:w-1/2 px-1">
-          <ui-multi-select ref="genresSelect" v-model="details.genres" :label="$strings.LabelGenres" :items="genres" @input="handleInputChange" />
+          <ui-multi-select ref="genresSelect" v-model="details.genres" :label="$strings.LabelGenres" :items="genres" case-insensitive @input="handleInputChange" />
         </div>
         <div class="grow px-1 mt-2 md:mt-0">
-          <ui-multi-select ref="tagsSelect" v-model="newTags" :label="$strings.LabelTags" :items="tags" @input="handleInputChange" />
+          <ui-multi-select ref="tagsSelect" v-model="newTags" :label="$strings.LabelTags" :items="tags" case-insensitive @input="handleInputChange" />
         </div>
       </div>
 
